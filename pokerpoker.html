@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Poker Game with AI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .cards-container {
+            display: flex;
+            gap: 10px;
+            min-height: 150px;
+        }
+        .card {
+            width: 100px;
+            height: 140px;
+            border: 1px solid #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fff;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        button {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid #000;
+            background: #fff;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .bet-input {
+            padding: 10px;
+            width: 100px;
+        }
+        .info-panel {
+            border: 1px solid #000;
+            padding: 10px;
+        }
+        .player-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .community-cards {
+            margin-bottom: 20px;
+        }
+        .hidden {
+            background: #ddd !important;
+        }
+        .ai-players {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .ai-player {
+            border: 1px solid #000;
+            padding: 10px;
+        }
+        .game-log {
+            border: 1px solid #000;
+            padding: 10px;
+            height: 200px; 
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="info-panel">
+            <div class="player-info">
+                <span>Your Chips: <span id="player-chips">1000</span></span>
+                <span>Current Pot: <span id="current-pot">0</span></span>
+                <span>Current Bet: <span id="current-bet">0</span></span>
+            </div>
+        </div>
+
+        <div class="ai-players">
+            <div class="ai-player" id="ai-player-1">
+                <h4>Big Tony</h4>
+                <div>Chips: <span class="ai-chips">1000</span></div>
+                <div>Current Bet: <span class="ai-bet">0</span></div>
+                <div class="cards-container">
+                    <div class="card hidden">?</div>
+                    <div class="card hidden">?</div>
+                </div>
+            </div>
+            <div class="ai-player" id="ai-player-2">
+                <h4>Peter Griffin</h4>
+                <div>Chips: <span class="ai-chips">1000</span></div>
+                <div>Current Bet: <span class="ai-bet">0</span></div>
+                <div class="cards-container">
+                    <div class="card hidden">?</div>
+                    <div class="card hidden">?</div>
+                </div>
+            </div>
+            <div class="ai-player" id="ai-player-3">
+                <h4>Mao Zedong</h4>
+                <div>Chips: <span class="ai-chips">1000</span></div>
+                <div>Current Bet: <span class="ai-bet">0</span></div>
+                <div class="cards-container">
+                    <div class="card hidden">?</div>
+                    <div class="card hidden">?</div>
+                </div>
+            </div>
+            <div class="ai-player" id="ai-player-4">
+                <h4>Lunchly</h4>
+                <div>Chips: <span class="ai-chips">1000</span></div>
+                <div>Current Bet: <span class="ai-bet">0</span></div>
+                <div class="cards-container">
+                    <div class="card hidden">?</div>
+                    <div class="card hidden">?</div>
+                </div>
+            </div>
+            <div class="ai-player" id="ai-player-5">
+                <h4>Heisenberg</h4>
+                <div>Chips: <span class="ai-chips">1000</span></div>
+                <div>Current Bet: <span class="ai-bet">0</span></div>
+                <div class="cards-container">
+                    <div class="card hidden">?</div>
+                    <div class="card hidden">?</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="community-cards">
+            <h3>Community Cards</h3>
+            <div class="cards-container" id="community-cards">
+                <div class="card hidden">?</div>
+                <div class="card hidden">?</div>
+                <div class="card hidden">?</div>
+                <div class="card hidden">?</div>
+                <div class="card hidden">?</div>
+            </div>
+        </div>
+
+        <div class="player-cards">
+            <h3>Your Cards</h3>
+            <div class="cards-container" id="player-cards">
+                <div class="card hidden">?</div>
+                <div class="card hidden">?</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <input type="number" class="bet-input" id="bet-amount" min="1" value="10">
+            <button id="bet-btn">Raise</button>
+            <button id="call-btn">Call</button>
+            <button id="fold-btn">Fold</button>
+            <button id="reset-btn">New Game</button>
+        </div>
+
+        <div class="game-log" id="game-log"></div>
+    </div>
+
+    <script>
+        class PokerGame {
+            constructor() {
+                this.players = [
+                    { type: 'human', chips: 1000, cards: [], bet: 0, folded: false },
+                    { 
+                        type: 'ai', 
+                        name: 'Big Tony', 
+                        chips: 1000, 
+                        cards: [], 
+                        bet: 0, 
+                        folded: false,
+                        personality: {
+                            aggression: 0.8,
+                            bluffing: 0.7,
+                            tilt: 0.6
+                        }
+                    },
+                    { 
+                        type: 'ai', 
+                        name: 'Peter Griffin', 
+                        chips: 1000, 
+                        cards: [], 
+                        bet: 0, 
+                        folded: false,
+                        personality: {
+                            aggression: 0.9,
+                            bluffing: 0.9,
+                            tilt: 0.9
+                        }
+                    },
+                    { 
+                        type: 'ai', 
+                        name: 'Mao Zedong', 
+                        chips: 1000, 
+                        cards: [], 
+                        bet: 0, 
+                        folded: false,
+                        personality: {
+                            aggression: 0.7,
+                            bluffing: 0.4,
+                            tilt: 0.3
+                        }
+                    },
+                    { 
+                        type: 'ai', 
+                        name: 'Lunchly', 
+                        chips: 1000, 
+                        cards: [], 
+                        bet: 0, 
+                        folded: false,
+                        personality: {
+                            aggression: 0.4,
+                            bluffing: 0.5,
+                            tilt: 0.2
+                        }
+                    },
+                    { 
+                        type: 'ai', 
+                        name: 'Heisenberg', 
+                        chips: 1000, 
+                        cards: [], 
+                        bet: 0, 
+                        folded: false,
+                        personality: {
+                            aggression: 1.0,
+                            bluffing: 0.8,
+                            tilt: 0.7
+                        }
+                    }
+                ];
+        
+                this.deck = [];
+                this.currentPot = 0;
+                this.currentBet = 0;
+                this.communityCards = [];
+                this.gameActive = false;
+                this.lastBet = 0;
+                this.currentPlayer = 0;
+                this.phase = 'preflop';
+                this.revealedCards = 0;
+                this.roundsPlayed = 0;
+        
+                this.initializeElements();
+                this.initializeEventListeners();
+                this.resetGame();
+            }
+        
+            initializeElements() {
+                this.playerChipsEl = document.getElementById('player-chips');
+                this.currentPotEl = document.getElementById('current-pot');
+                this.currentBetEl = document.getElementById('current-bet');
+                this.betInput = document.getElementById('bet-amount');
+                this.betBtn = document.getElementById('bet-btn');
+                this.callBtn = document.getElementById('call-btn');
+                this.foldBtn = document.getElementById('fold-btn');
+                this.resetBtn = document.getElementById('reset-btn');
+                this.playerCardsContainer = document.getElementById('player-cards');
+                this.communityCardsContainer = document.getElementById('community-cards');
+                this.gameLog = document.getElementById('game-log');
+            }
+        
+            initializeEventListeners() {
+                this.betBtn.addEventListener('click', () => this.placeBet());
+                this.callBtn.addEventListener('click', () => this.call());
+                this.foldBtn.addEventListener('click', () => this.fold());
+                this.resetBtn.addEventListener('click', () => this.resetGame());
+            }
+        
+            log(message) {
+                const logEntry = document.createElement('div');
+                logEntry.textContent = message;
+                this.gameLog.appendChild(logEntry);
+                this.gameLog.scrollTop = this.gameLog.scrollHeight;
+            }
+        
+            createDeck() {
+                const suits = ['♠', '♣', '♥', '♦'];
+                const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+                this.deck = [];
+                for (let suit of suits) {
+                    for (let value of values) {
+                        this.deck.push({ suit, value });
+                    }
+                }
+            }
+        
+            shuffleDeck() {
+                for (let i = this.deck.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+                }
+            }
+        
+            dealCards() {
+                for (let player of this.players) {
+                    player.cards = [this.deck.pop(), this.deck.pop()];
+                }
+                this.communityCards = [
+                    this.deck.pop(),
+                    this.deck.pop(),
+                    this.deck.pop(),
+                    this.deck.pop(),
+                    this.deck.pop()
+                ];
+                this.updateCardDisplay();
+            }
+        
+            updateCardDisplay() {
+                const playerCardElements = this.playerCardsContainer.children;
+                this.players[0].cards.forEach((card, index) => {
+                    playerCardElements[index].textContent = `${card.value}${card.suit}`;
+                    playerCardElements[index].classList.remove('hidden');
+                });
+        
+                document.querySelectorAll('.ai-player').forEach((aiPlayer, playerIndex) => {
+                    const chips = aiPlayer.querySelector('.ai-chips');
+                    const bet = aiPlayer.querySelector('.ai-bet');
+                    const cardElements = aiPlayer.querySelectorAll('.card');
+                    chips.textContent = this.players[playerIndex + 1].chips;
+                    bet.textContent = this.players[playerIndex + 1].bet;
+        
+                    if (!this.gameActive) {
+                        const aiCards = this.players[playerIndex + 1].cards;
+                        aiCards.forEach((card, cardIndex) => {
+                            cardElements[cardIndex].textContent = `${card.value}${card.suit}`;
+                            cardElements[cardIndex].classList.remove('hidden');
+                        });
+                    } else {
+                        cardElements.forEach(card => {
+                            card.textContent = '?';
+                            card.classList.add('hidden');
+                        });
+                    }
+                });
+        
+                const communityCardElements = this.communityCardsContainer.children;
+                for (let i = 0; i < 5; i++) {
+                    if (i < this.revealedCards) {
+                        communityCardElements[i].textContent = `${this.communityCards[i].value}${this.communityCards[i].suit}`;
+                        communityCardElements[i].classList.remove('hidden');
+                    } else {
+                        communityCardElements[i].classList.add('hidden');
+                        communityCardElements[i].textContent = '?';
+                    }
+                }
+            }
+        
+            endHand() {
+                this.gameActive = false;
+                const activePlayers = this.players.filter(p => !p.folded);
+                
+                this.players.forEach(player => {
+                    if (player.type === 'human') {
+                        this.log(`Your hand: ${player.cards[0].value}${player.cards[0].suit} ${player.cards[1].value}${player.cards[1].suit}`);
+                    } else {
+                        this.log(`${player.name}'s hand: ${player.cards[0].value}${player.cards[0].suit} ${player.cards[1].value}${player.cards[1].suit}`);
+                    }
+                });
+        
+                if (activePlayers.length === 1) {
+                    activePlayers[0].chips += this.currentPot;
+                    this.log(`${activePlayers[0].type === 'human' ? 'You win' : activePlayers[0].name + ' wins'} ${this.currentPot} chips`);
+                } else {
+                    const hands = activePlayers.map(player => ({
+                        player,
+                        strength: this.evaluateHand([...player.cards, ...this.communityCards])
+                    }));
+                    
+                    const winner = hands.reduce((a, b) => a.strength > b.strength ? a : b);
+                    winner.player.chips += this.currentPot;
+                    this.log(`${winner.player.type === 'human' ? 'You win' : winner.player.name + ' wins'} ${this.currentPot} chips`);
+                }
+                
+                this.revealedCards = 5;
+                this.updateCardDisplay();
+                this.roundsPlayed++;
+            }
+        
+            evaluateHand(cards) {
+                let strength = 0;
+                const values = cards.map(card => card.value);
+                const suits = cards.map(card => card.suit);
+                
+                const valueCount = {};
+                values.forEach(value => {
+                    valueCount[value] = (valueCount[value] || 0) + 1;
+                });
+                
+                const pairs = Object.values(valueCount).filter(count => count === 2).length;
+                const threeOfKind = Object.values(valueCount).some(count => count === 3);
+                const fourOfKind = Object.values(valueCount).some(count => count === 4);
+                
+                if (fourOfKind) strength += 8;
+                if (threeOfKind) strength += 5;
+                strength += pairs * 2;
+                
+                if (suits.length >= 5 && new Set(suits).size === 1) strength += 6;
+                
+                const highCards = cards.filter(card => ['A', 'K', 'Q', 'J'].includes(card.value));
+                strength += highCards.length;
+                
+                return strength / 10;
+            }
+        
+            getAIDecision(playerIndex) {
+                const player = this.players[playerIndex];
+                const personality = player.personality;
+                const visibleCommunityCards = this.communityCards.slice(0, this.revealedCards);
+                let handStrength = this.evaluateHand([...player.cards, ...visibleCommunityCards]);
+                
+                const randomFactor = Math.random() * personality.tilt;
+                handStrength = handStrength * (1 + randomFactor);
+                
+                const potOdds = this.lastBet / this.currentPot;
+                const effectiveStack = player.chips / this.currentPot;
+                
+                const bluffProbability = Math.random() < personality.bluffing;
+                if (bluffProbability && this.roundsPlayed % 3 === 0) {
+                    handStrength += personality.bluffing * 0.3;
+                }
+        
+                const aggressionModifier = personality.aggression * (1 + Math.random() * 0.5);
+                handStrength *= aggressionModifier;
+        
+                if (handStrength > 0.7) {
+                    const raiseAmount = Math.min(
+                        Math.floor(player.chips * handStrength * personality.aggression),
+                        Math.max(this.lastBet * 2, 50)
+                    );
+                    return { action: 'raise', amount: raiseAmount };
+                } else if (handStrength > 0.4 || (bluffProbability && handStrength > 0.2)) {
+                    const callAmount = this.lastBet - player.bet;
+                    if (callAmount <= player.chips * 0.2) {
+                        return { action: 'call' };
+                    }
+                }
+                
+                return { action: 'fold' };
+            }
+        
+            async aiTurn() {
+                for (let i = 1; i < this.players.length; i++) {
+                    if (this.players[i].folded || this.players[i].chips === 0) continue;
+                    
+                    const decision = this.getAIDecision(i);
+                    switch (decision.action) {
+                        case 'raise':
+                            this.lastBet = decision.amount;
+                            this.players[i].chips -= decision.amount;
+                            this.players[i].bet += decision.amount;
+                            this.currentPot += decision.amount;
+                            this.log(`${this.players[i].name} raises to ${decision.amount}`);
+                            break;
+                        case 'call':
+                            const callAmount = this.lastBet - this.players[i].bet;
+                            this.players[i].chips -= callAmount;
+                            this.players[i].bet += callAmount;
+                            this.currentPot += callAmount;
+                            this.log(`${this.players[i].name} calls`);
+                            break;
+                        case 'fold':
+                            this.players[i].folded = true;
+                            this.log(`${this.players[i].name} folds`);
+                            break;
+                    }
+                    
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    this.updateDisplay();
+                }
+                
+                this.nextPhase();
+            }
+        
+            placeBet() {
+                const betAmount = parseInt(this.betInput.value);
+                if (isNaN(betAmount) || betAmount > this.players[0].chips || betAmount < this.lastBet) {
+                    return;
+                }
+        
+                this.lastBet = betAmount;
+                this.players[0].chips -= betAmount;
+                this.players[0].bet += betAmount;
+                this.currentPot += betAmount;
+                this.log('You raise to ' + betAmount);
+                
+                this.updateDisplay();
+                this.aiTurn();
+            }
+        
+            call() {
+                const callAmount = this.lastBet - this.players[0].bet;
+                if (callAmount > this.players[0].chips) return;
+                
+                this.players[0].chips -= callAmount;
+                this.players[0].bet += callAmount;
+                this.currentPot += callAmount;
+                this.log('You call');
+                
+                this.updateDisplay();
+                this.aiTurn();
+            }
+        
+            fold() {
+                this.players[0].folded = true;
+                this.log('You fold');
+                this.endHand();
+            }
+        
+            nextPhase() {
+                const activePlayers = this.players.filter(p => !p.folded && p.chips > 0);
+                if (activePlayers.length === 1) {
+                    this.endHand();
+                    return;
+                }
+        
+                switch (this.phase) {
+                    case 'preflop':
+                        this.phase = 'flop';
+                        this.revealedCards = 3;
+                        break;
+                    case 'flop':
+                        this.phase = 'turn';
+                        this.revealedCards = 4;
+                        break;
+                    case 'turn':
+                        this.phase = 'river';
+                        this.revealedCards = 5;
+                        break;
+                    case 'river':
+                        this.endHand();
+                        return;
+                }
+        
+                this.lastBet = 0;
+                this.players.forEach(p => p.bet = 0);
+                this.updateCardDisplay();
+                this.log(`--- ${this.phase.toUpperCase()} ---`);
+            }
+        
+            endHand() {
+                const activePlayers = this.players.filter(p => !p.folded);
+                if (activePlayers.length === 1) {
+                    activePlayers[0].chips += this.currentPot;
+                    this.log(`${activePlayers[0].type === 'human' ? 'You win' : activePlayers[0].name + ' wins'} ${this.currentPot} chips`);
+                } else {
+                    const hands = activePlayers.map(player => ({
+                        player,
+                        strength: this.evaluateHand([...player.cards, ...this.communityCards])
+                    }));
+                    
+                    const winner = hands.reduce((a, b) => a.strength > b.strength ? a : b);
+                    winner.player.chips += this.currentPot;
+                    this.log(`${winner.player.type === 'human' ? 'You win' : winner.player.name + ' wins'} ${this.currentPot} chips`);
+                }
+                
+                this.revealedCards = 5;
+                this.updateCardDisplay();
+                this.gameActive = false;
+                this.roundsPlayed++;
+            }
+        
+            updateDisplay() {
+                this.playerChipsEl.textContent = this.players[0].chips;
+                this.currentPotEl.textContent = this.currentPot;
+                this.currentBetEl.textContent = this.lastBet;
+                this.updateCardDisplay();
+            }
+        
+            resetGame() {
+                this.createDeck();
+                this.shuffleDeck();
+                this.currentPot = 0;
+                this.lastBet = 0;
+                this.phase = 'preflop';
+                this.revealedCards = 0;
+                this.gameActive = true;
+                
+                this.players.forEach(player => {
+                    player.cards = [];
+                    player.bet = 0;
+                    player.folded = false;
+                });
+                
+                this.dealCards();
+                this.updateDisplay();
+                this.log('--- NEW HAND ---');
+            }
+        }
+        
+        new PokerGame();
+    </script>
+</body>
+</html>
