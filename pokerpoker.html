@@ -80,6 +80,52 @@
             overflow-y: auto;
             margin-top: 10px;
         }
+        .action-indicator {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ffeb3b;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: none;
+        }
+        .ai-player {
+            position: relative;
+        }
+        .hand-strength {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+        .betting-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #bet-slider {
+            width: 200px;
+        }
+        .bet-input-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .bet-slider {
+            width: 200px;
+        }
+        .bet-input {
+            width: 80px;
+            padding: 5px;
+        }
     </style>
 </head>
 <body>
@@ -160,10 +206,16 @@
         </div>
 
         <div class="controls">
-            <input type="number" class="bet-input" id="bet-amount" min="1" value="10">
-            <button id="bet-btn">Raise</button>
-            <button id="call-btn">Call</button>
-            <button id="fold-btn">Fold</button>
+            <div class="betting-controls">
+                <div class="bet-input-container">
+                    <input type="number" id="bet-amount" class="bet-input" min="1">
+                    <input type="range" id="bet-slider" class="bet-slider">
+                </div>
+                <button id="bet-btn">Bet</button>
+                <button id="call-btn">Call</button>
+                <button id="check-btn">Check</button>
+                <button id="fold-btn">Fold</button>
+            </div>
             <button id="reset-btn">New Game</button>
         </div>
 
@@ -252,38 +304,68 @@
                 this.phase = 'preflop';
                 this.revealedCards = 0;
                 this.roundsPlayed = 0;
+                this.smallBlind = 5;
+                this.bigBlind = 10;
+                this.dealer = 0;
+                this.minRaise = this.bigBlind;
+                this.validBets = [50, 100, 200, 500];
+                this.maxBetPercentage = 0.8;
         
-                this.initializeElements();
-                this.initializeEventListeners();
+                this.init();
+            }
+        
+            init() {
+                this.initElements();
+                this.initEvents();
                 this.resetGame();
             }
         
-            initializeElements() {
-                this.playerChipsEl = document.getElementById('player-chips');
-                this.currentPotEl = document.getElementById('current-pot');
-                this.currentBetEl = document.getElementById('current-bet');
-                this.betInput = document.getElementById('bet-amount');
-                this.betBtn = document.getElementById('bet-btn');
-                this.callBtn = document.getElementById('call-btn');
-                this.foldBtn = document.getElementById('fold-btn');
-                this.resetBtn = document.getElementById('reset-btn');
-                this.playerCardsContainer = document.getElementById('player-cards');
-                this.communityCardsContainer = document.getElementById('community-cards');
-                this.gameLog = document.getElementById('game-log');
+            initElements() {
+                this.elements = {
+                    playerChips: document.getElementById('player-chips'),
+                    currentPot: document.getElementById('current-pot'),
+                    currentBet: document.getElementById('current-bet'),
+                    betBtns: document.querySelectorAll('.bet-amount-btn'),
+                    callBtn: document.getElementById('call-btn'),
+                    checkBtn: document.getElementById('check-btn'),
+                    foldBtn: document.getElementById('fold-btn'),
+                    resetBtn: document.getElementById('reset-btn'),
+                    playerCards: document.getElementById('player-cards'),
+                    communityCards: document.getElementById('community-cards'),
+                    gameLog: document.getElementById('game-log'),
+                    betInput: document.getElementById('bet-amount'),
+                    betSlider: document.getElementById('bet-slider'),
+                    betBtn: document.getElementById('bet-btn')
+                };
+
+                this.elements.betSlider.addEventListener('input', (e) => {
+                    this.elements.betInput.value = e.target.value;
+                    this.validateBet();
+                });
+
+                this.elements.betInput.addEventListener('input', (e) => {
+                    this.elements.betSlider.value = e.target.value;
+                    this.validateBet();
+                });
+
+                this.elements.betBtn.addEventListener('click', () => this.placeBet());
             }
         
-            initializeEventListeners() {
-                this.betBtn.addEventListener('click', () => this.placeBet());
-                this.callBtn.addEventListener('click', () => this.call());
-                this.foldBtn.addEventListener('click', () => this.fold());
-                this.resetBtn.addEventListener('click', () => this.resetGame());
+            initEvents() {
+                this.elements.betBtns.forEach(btn => {
+                    btn.addEventListener('click', () => this.placeBet(parseInt(btn.dataset.amount)));
+                });
+                this.elements.callBtn.addEventListener('click', () => this.call());
+                this.elements.checkBtn.addEventListener('click', () => this.check());
+                this.elements.foldBtn.addEventListener('click', () => this.fold());
+                this.elements.resetBtn.addEventListener('click', () => this.resetGame());
             }
         
             log(message) {
                 const logEntry = document.createElement('div');
                 logEntry.textContent = message;
-                this.gameLog.appendChild(logEntry);
-                this.gameLog.scrollTop = this.gameLog.scrollHeight;
+                this.elements.gameLog.appendChild(logEntry);
+                this.elements.gameLog.scrollTop = this.elements.gameLog.scrollHeight;
             }
         
             createDeck() {
@@ -319,7 +401,7 @@
             }
         
             updateCardDisplay() {
-                const playerCardElements = this.playerCardsContainer.children;
+                const playerCardElements = this.elements.playerCards.children;
                 this.players[0].cards.forEach((card, index) => {
                     playerCardElements[index].textContent = `${card.value}${card.suit}`;
                     playerCardElements[index].classList.remove('hidden');
@@ -346,7 +428,7 @@
                     }
                 });
         
-                const communityCardElements = this.communityCardsContainer.children;
+                const communityCardElements = this.elements.communityCards.children;
                 for (let i = 0; i < 5; i++) {
                     if (i < this.revealedCards) {
                         communityCardElements[i].textContent = `${this.communityCards[i].value}${this.communityCards[i].suit}`;
@@ -390,62 +472,69 @@
             }
         
             evaluateHand(cards) {
-                let strength = 0;
-                const values = cards.map(card => card.value);
-                const suits = cards.map(card => card.suit);
-                
-                const valueCount = {};
-                values.forEach(value => {
-                    valueCount[value] = (valueCount[value] || 0) + 1;
+                const values = cards.map(card => {
+                    const value = card.value;
+                    return value === 'A' ? 14 :
+                           value === 'K' ? 13 :
+                           value === 'Q' ? 12 :
+                           value === 'J' ? 11 :
+                           parseInt(value);
                 });
+                const suits = cards.map(card => card.suit);
+    
+                const isFlush = suits.filter(suit => suit === suits[0]).length >= 5;
                 
-                const pairs = Object.values(valueCount).filter(count => count === 2).length;
-                const threeOfKind = Object.values(valueCount).some(count => count === 3);
-                const fourOfKind = Object.values(valueCount).some(count => count === 4);
+                values.sort((a, b) => a - b);
+                let isStraight = false;
+                for (let i = 0; i < values.length - 4; i++) {
+                    if (values[i+4] - values[i] === 4) {
+                        isStraight = true;
+                        break;
+                    }
+                }
+    
+                const valueCounts = {};
+                values.forEach(v => valueCounts[v] = (valueCounts[v] || 0) + 1);
+                const counts = Object.values(valueCounts);
                 
-                if (fourOfKind) strength += 8;
-                if (threeOfKind) strength += 5;
-                strength += pairs * 2;
-                
-                if (suits.length >= 5 && new Set(suits).size === 1) strength += 6;
-                
-                const highCards = cards.filter(card => ['A', 'K', 'Q', 'J'].includes(card.value));
-                strength += highCards.length;
-                
-                return strength / 10;
+                if (isFlush && isStraight) return 9;
+                if (counts.includes(4)) return 8;
+                if (counts.includes(3) && counts.includes(2)) return 7;
+                if (isFlush) return 6;
+                if (isStraight) return 5;
+                if (counts.includes(3)) return 4;
+                if (counts.filter(c => c === 2).length === 2) return 3;
+                if (counts.includes(2)) return 2;
+                return 1;
             }
         
+            calculateValidBet(amount, player) {
+                amount = Math.round(amount / this.smallBlind) * this.smallBlind;
+                
+                const minBet = Math.max(this.lastBet * 2, this.minRaise);
+                const maxBet = player.chips;
+                
+                amount = Math.min(amount, maxBet);
+                amount = Math.max(amount, minBet);
+                
+                return amount;
+            }
+
             getAIDecision(playerIndex) {
                 const player = this.players[playerIndex];
-                const personality = player.personality;
-                const visibleCommunityCards = this.communityCards.slice(0, this.revealedCards);
-                let handStrength = this.evaluateHand([...player.cards, ...visibleCommunityCards]);
+                const handStrength = this.evaluateHand([...player.cards, ...this.communityCards.slice(0, this.revealedCards)]);
                 
-                const randomFactor = Math.random() * personality.tilt;
-                handStrength = handStrength * (1 + randomFactor);
-                
-                const potOdds = this.lastBet / this.currentPot;
-                const effectiveStack = player.chips / this.currentPot;
-                
-                const bluffProbability = Math.random() < personality.bluffing;
-                if (bluffProbability && this.roundsPlayed % 3 === 0) {
-                    handStrength += personality.bluffing * 0.3;
-                }
-        
-                const aggressionModifier = personality.aggression * (1 + Math.random() * 0.5);
-                handStrength *= aggressionModifier;
-        
-                if (handStrength > 0.7) {
-                    const raiseAmount = Math.min(
-                        Math.floor(player.chips * handStrength * personality.aggression),
-                        Math.max(this.lastBet * 2, 50)
-                    );
-                    return { action: 'raise', amount: raiseAmount };
-                } else if (handStrength > 0.4 || (bluffProbability && handStrength > 0.2)) {
-                    const callAmount = this.lastBet - player.bet;
-                    if (callAmount <= player.chips * 0.2) {
-                        return { action: 'call' };
+                if (handStrength > 0.7 && player.chips >= 50) {
+                    const availableBets = this.validBets.filter(bet => bet <= player.chips);
+                    if (availableBets.length) {
+                        const betIndex = Math.floor(handStrength * (availableBets.length - 1));
+                        return { action: 'raise', amount: availableBets[betIndex] };
                     }
+                }
+                
+                const callAmount = this.lastBet - player.bet;
+                if (handStrength > 0.4 && callAmount <= player.chips) {
+                    return { action: 'call' };
                 }
                 
                 return { action: 'fold' };
@@ -456,24 +545,27 @@
                     if (this.players[i].folded || this.players[i].chips === 0) continue;
                     
                     const decision = this.getAIDecision(i);
+                    const player = this.players[i];
+    
                     switch (decision.action) {
                         case 'raise':
-                            this.lastBet = decision.amount;
-                            this.players[i].chips -= decision.amount;
-                            this.players[i].bet += decision.amount;
-                            this.currentPot += decision.amount;
-                            this.log(`${this.players[i].name} raises to ${decision.amount}`);
+                            const validRaise = this.calculateValidBet(decision.amount, player);
+                            player.chips -= validRaise;
+                            player.bet += validRaise;
+                            this.currentPot += validRaise;
+                            this.lastBet = validRaise;
+                            this.log(`${player.name} raises to ${validRaise}`);
                             break;
                         case 'call':
-                            const callAmount = this.lastBet - this.players[i].bet;
-                            this.players[i].chips -= callAmount;
-                            this.players[i].bet += callAmount;
+                            const callAmount = Math.min(this.lastBet - player.bet, player.chips);
+                            player.chips -= callAmount;
+                            player.bet += callAmount;
                             this.currentPot += callAmount;
-                            this.log(`${this.players[i].name} calls`);
+                            this.log(`${player.name} calls ${callAmount}`);
                             break;
                         case 'fold':
-                            this.players[i].folded = true;
-                            this.log(`${this.players[i].name} folds`);
+                            player.folded = true;
+                            this.log(`${player.name} folds`);
                             break;
                     }
                     
@@ -485,40 +577,55 @@
             }
         
             placeBet() {
-                const betAmount = parseInt(this.betInput.value);
-                if (isNaN(betAmount) || betAmount > this.players[0].chips || betAmount < this.lastBet) {
+                const betAmount = parseInt(this.elements.betInput.value);
+                const maxBet = Math.floor(this.players[0].chips * this.maxBetPercentage);
+                
+                if (isNaN(betAmount) || betAmount > maxBet || betAmount < this.lastBet) {
                     return;
                 }
-        
+    
                 this.lastBet = betAmount;
                 this.players[0].chips -= betAmount;
                 this.players[0].bet += betAmount;
                 this.currentPot += betAmount;
-                this.log('You raise to ' + betAmount);
+                this.log(`You bet ${betAmount}`);
                 
                 this.updateDisplay();
                 this.aiTurn();
             }
         
             call() {
-                const callAmount = this.lastBet - this.players[0].bet;
-                if (callAmount > this.players[0].chips) return;
+                const callAmount = Math.max(0, this.lastBet - this.players[0].bet);
+                if (callAmount === 0) {
+                    this.check();
+                    return;
+                }
+                
+                if (callAmount > this.players[0].chips) {
+                    this.log('Not enough chips to call');
+                    return;
+                }
                 
                 this.players[0].chips -= callAmount;
                 this.players[0].bet += callAmount;
                 this.currentPot += callAmount;
-                this.log('You call');
+                this.log(`You call ${callAmount}`);
                 
                 this.updateDisplay();
                 this.aiTurn();
             }
-        
-            fold() {
-                this.players[0].folded = true;
-                this.log('You fold');
-                this.endHand();
+
+            check() {
+                if (this.lastBet > this.players[0].bet) {
+                    this.log('Cannot check - must call or fold');
+                    return;
+                }
+                
+                this.log('You check');
+                this.updateDisplay();
+                this.aiTurn();
             }
-        
+
             nextPhase() {
                 const activePlayers = this.players.filter(p => !p.folded && p.chips > 0);
                 if (activePlayers.length === 1) {
@@ -573,10 +680,34 @@
             }
         
             updateDisplay() {
-                this.playerChipsEl.textContent = this.players[0].chips;
-                this.currentPotEl.textContent = this.currentPot;
-                this.currentBetEl.textContent = this.lastBet;
+                this.elements.playerChips.textContent = this.players[0].chips;
+                this.elements.currentPot.textContent = this.currentPot;
+                this.elements.currentBet.textContent = this.lastBet;
                 this.updateCardDisplay();
+                this.updateControls();
+            }
+        
+            updateControls() {
+                const currentBet = this.players[0].bet || 0;
+                const callAmount = Math.max(0, this.lastBet - currentBet);
+                const canCheck = callAmount === 0;
+                const canCall = callAmount > 0 && callAmount <= this.players[0].chips;
+                const maxBet = Math.floor(this.players[0].chips * this.maxBetPercentage);
+
+                this.elements.checkBtn.disabled = !canCheck;
+                this.elements.callBtn.disabled = !canCall;
+                this.elements.betBtn.disabled = this.players[0].chips === 0;
+
+                this.elements.callBtn.textContent = canCall ? `Call ${callAmount}` : 'Call';
+                this.elements.betSlider.max = maxBet;
+                this.elements.betSlider.min = this.lastBet;
+                this.elements.betInput.max = maxBet;
+                this.elements.betInput.min = this.lastBet;
+                
+                if (this.elements.betInput.value > maxBet) {
+                    this.elements.betInput.value = maxBet;
+                    this.elements.betSlider.value = maxBet;
+                }
             }
         
             resetGame() {
@@ -597,6 +728,29 @@
                 this.dealCards();
                 this.updateDisplay();
                 this.log('--- NEW HAND ---');
+            }
+        
+            startNewRound() {
+                this.dealer = (this.dealer + 1) % this.players.length;
+                const sbPosition = (this.dealer + 1) % this.players.length;
+                const bbPosition = (this.dealer + 2) % this.players.length;
+    
+                this.postBlind(sbPosition, this.smallBlind);
+                this.postBlind(bbPosition, this.bigBlind);
+                
+                this.lastBet = this.bigBlind;
+                this.currentPlayer = (bbPosition + 1) % this.players.length;
+                this.log('--- NEW HAND ---');
+                this.log(`Dealer: ${this.players[this.dealer].name || 'You'}`);
+            }
+    
+            postBlind(position, amount) {
+                const player = this.players[position];
+                const actualAmount = Math.min(amount, player.chips);
+                player.chips -= actualAmount;
+                player.bet = actualAmount;
+                this.currentPot += actualAmount;
+                this.log(`${player.type === 'human' ? 'You' : player.name} posts ${actualAmount} ${amount === this.smallBlind ? 'small blind' : 'big blind'}`);
             }
         }
         
